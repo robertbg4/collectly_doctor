@@ -33,9 +33,9 @@ headers = {
 }
 
 
-@app.route("/")
-def main():
-    return redirect("/appointments")
+@app.errorhandler(404)
+def page_not_found(e):
+    return redirect('/appointments', 301)
 
 
 @app.route("/form", methods=["GET", "POST"])
