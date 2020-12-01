@@ -48,13 +48,13 @@
         {% endfor %}
 
         {{ form.date_of_birth.label }} <br>
-        {{ form.date_of_birth(type="date", class="form-control col-md-2") }}<br>
+        {{ form.date_of_birth(type="date", class="form-control col-md-2", placeholder="YYYY-MM-DD") }}<br>
         {% for error in form.date_of_birth.errors %}
         <span style="color: red;">[{{ error }}]</span>
         {% endfor %}
 
         {{ form.email.label }} <br>
-        {{ form.email(type="email", class="form-control col-md-3") }}<br>
+        {{ form.email(type="email", class="form-control col-md-3", placeholder="email@example.com") }}<br>
         {% for error in form.email.errors %}
         <span style="color: red;">[{{ error }}]</span>
         {% endfor %}

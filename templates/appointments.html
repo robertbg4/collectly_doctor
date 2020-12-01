@@ -7,7 +7,7 @@
 <div class="row">
     {% if previous_week_start %}
     <div class="col">
-        <a type="button" class="btn btn-primary" style="width: 130px"
+        <a class="btn btn-primary" style="width: 130px"
            href="/appointments?from_date={{ previous_week_start.strftime('%Y-%m-%d') }}">
             {{ previous_week_end.strftime('%Y-%m-%d') }}&nbsp<
         </a>
@@ -25,7 +25,7 @@
                 {{ interval }}
             </button>
             {% else %}
-            <a type="button" class="btn btn-success btn-sm"
+            <a class="btn btn-success btn-sm"
                href="/form?start={{ interval.start.strftime('%Y-%m-%d %H:%M') }}&duration={{ interval.duration }}"
                style="height: {{ 2 * interval.duration if interval.duration > 15 else 30 }}px; width: 118px">
                 {{ interval }}
@@ -37,7 +37,7 @@
 
     {% endfor %}
     <div class="col">
-        <a type="button" class="btn btn-primary" style="width: 130px"
+        <a class="btn btn-primary" style="width: 130px"
            href="/appointments?from_date={{ next_week.strftime('%Y-%m-%d') }}">
             >&nbsp{{ next_week.strftime('%Y-%m-%d') }}
         </a>
