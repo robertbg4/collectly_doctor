@@ -1,0 +1,4 @@
+Flask-WTF==0.14.3
+Flask==1.1.2
+python-telegram-bot==13.0
+requests==2.25.0

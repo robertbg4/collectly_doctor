@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>Appointments list</h2>
+
+<div class="row">
+    {% if previous_week_start %}
+    <div class="col">
+        <a type="button" class="btn btn-primary" style="width: 130px"
+           href="/appointments?from_date={{ previous_week_start.strftime('%Y-%m-%d') }}">
+            {{ previous_week_end.strftime('%Y-%m-%d') }}&nbsp<
+        </a>
+    </div>
+    {% endif %}
+    {% for date, intervals in dates.items() %}
+
+    <div class="col">
+        <h6> {{ date }} </h6>
+        {% for interval in intervals %}
+        <div class="row" style="padding: 0px">
+            {% if interval.booked %}
+            <button type="button" class="btn btn-light btn-sm" disabled
+                    style="height: {{ 2 * interval.duration if interval.duration > 15 else 30 }}px; width: 118px">
+                {{ interval }}
+            </button>
+            {% else %}
+            <a type="button" class="btn btn-success btn-sm"
+               href="/form?start={{ interval.start.strftime('%Y-%m-%d %H:%M') }}&duration={{ interval.duration }}"
+               style="height: {{ 2 * interval.duration if interval.duration > 15 else 30 }}px; width: 118px">
+                {{ interval }}
+            </a>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    {% endfor %}
+    <div class="col">
+        <a type="button" class="btn btn-primary" style="width: 130px"
+           href="/appointments?from_date={{ next_week.strftime('%Y-%m-%d') }}">
+            >&nbsp{{ next_week.strftime('%Y-%m-%d') }}
+        </a>
+    </div>
+</div>
+{% endblock %}

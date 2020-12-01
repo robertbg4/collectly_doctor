@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>Create patient</h2>
+
+<form action="" method="get">
+</form>
+
+<form action="" method="post">
+    {{ form.csrf_token }}
+
+    <div class="form-group">
+        <label for="Date">Date</label>
+        <input class="form-control col-md-2" id="Date" readonly value="{{ start_times[0].strftime('%Y-%m-%d') }}">
+        <label for="TimeControlSelect">Start time</label>
+        <select class="form-control col-md-2" id="TimeControlSelect" onchange="setDurations(this)" name="start_time">
+            {% for start_time in start_times %}
+            <option> {{ start_time.strftime('%H:%M') }}</option>
+            {% endfor %}
+        </select><br>
+        {% for error in form.start_time.errors %}
+        <span style="color: red;">[{{ error }}]</span>
+        {% endfor %}
+        <label for="DurationSelect">Duration</label>
+        <select class="form-control col-md-2" id="DurationSelect" name="duration">
+            {% for duration in durations %}
+            <option> {{ duration }} min</option>
+            {% endfor %}
+        </select><br>
+        {% for error in form.duration.errors %}
+        <span style="color: red;">[{{ error }}]</span>
+        {% endfor %}
+    </div>
+
+    <div class="form-group">
+
+        {{ form.first_name.label }} <br>
+        {{ form.first_name(class="form-control col-md-3") }}<br>
+        {% for error in form.first_name.errors %}
+        <span style="color: red;">[{{ error }}]</span>
+        {% endfor %}
+
+        {{ form.last_name.label }} <br>
+        {{ form.last_name(class="form-control col-md-3") }}<br>
+        {% for error in form.last_name.errors %}
+        <span style="color: red;">[{{ error }}]</span>
+        {% endfor %}
+
+        {{ form.date_of_birth.label }} <br>
+        {{ form.date_of_birth(type="date", class="form-control col-md-2") }}<br>
+        {% for error in form.date_of_birth.errors %}
+        <span style="color: red;">[{{ error }}]</span>
+        {% endfor %}
+
+        {{ form.email.label }} <br>
+        {{ form.email(type="email", class="form-control col-md-3") }}<br>
+        {% for error in form.email.errors %}
+        <span style="color: red;">[{{ error }}]</span>
+        {% endfor %}
+
+        {{ form.phone.label }} <br>
+        {{ form.phone(type="tel", class="form-control col-md-3", pattern="(\+?\d[- .]*){7,13}",
+        placeholder="+1234567890") }}<br>
+        {% for error in form.phone.errors %}
+        <span style="color: red;">[{{ error }}]</span>
+        {% endfor %}
+
+        {{ form.gender.label }} <br>
+        {{ form.gender(class="form-control col-md-3") }}
+    </div>
+    {{ form.submit(class="btn btn-primary") }}
+</form>
+
+<script language="JavaScript">
+function parseTime( t ) {
+   var d = new Date();
+   var time = t.match( /(\d+)(?::(\d\d))?\s*(p?)/ );
+   d.setHours( parseInt( time[1]) + (time[3] ? 12 : 0) );
+   d.setMinutes( parseInt( time[2]) || 0 );
+   d.setSeconds( 0 );
+   return d;
+}
+
+function durationDiff(dt2, dt1) {
+    var diff =(dt2.getTime() - dt1.getTime()) / 1000;
+    diff /= 60;
+    return Math.abs(Math.round(diff));
+}
+
+var end_time = parseTime('{{ end_time }}');
+
+function setDurations(timeSelect)
+{
+    var duration = document.getElementById("DurationSelect");
+    console.log(timeSelect.value);
+    var start_time = parseTime(timeSelect.value);
+    document.getElementById("startTime").value = start_time;
+    console.log(start_time);
+    console.log(end_time);
+    var max_duration = durationDiff(end_time, start_time);
+    console.log(max_duration);
+    var str = ""
+    for (var i = 15; i <= max_duration; i += 15) {
+        str += "<option>" + i + " min</option>"
+    }
+    duration.innerHTML = str;
+};
+
+</script>
+
+{% endblock %}
