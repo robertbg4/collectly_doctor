@@ -19,3 +19,5 @@ SECRET_KEY = get_required_env("SECRET_KEY")
 DOCTOR_ID = get_required_env("DOCTOR_ID")
 OFFICE_ID = get_required_env("OFFICE_ID")
 EXAM_ROOM = get_required_env("EXAM_ROOM")
+
+REQUEST_ATTEMPT_LIMIT = 3

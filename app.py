@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-import requests
+from requests import Session
 from flask import Flask, request, redirect, render_template, abort
 from flask_wtf import CSRFProtect
 
@@ -14,28 +14,64 @@ csrf = CSRFProtect(app)
 
 
 def get_access_token(refresh_token):
-    response = requests.post(
-        "https://drchrono.com/o/token/",
-        data={
-            "refresh_token": refresh_token,
-            "grant_type": "refresh_token",
-            "client_id": config.DRCHRONO_CLIENT_ID,
-            "client_secret": config.DRCHRONO_CLIENT_SECRET,
-        },
-    )
-    if response.status_code == 200:
-        return response.json()["access_token"]
-    response.raise_for_status()
+    with Session() as requests:
+        response = requests.post(
+            "https://drchrono.com/o/token/",
+            data={
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token",
+                "client_id": config.DRCHRONO_CLIENT_ID,
+                "client_secret": config.DRCHRONO_CLIENT_SECRET,
+            },
+        )
+        if response.status_code == 200:
+            return response.json()["access_token"]
+        response.raise_for_status()
 
 
-headers = {
+authorization_header = {
     "Authorization": f"Bearer {get_access_token(config.DRCHRONO_REFRESH_TOKEN)}",
 }
 
 
+class DrChronoSession(Session):
+    def request(self, method, url, attempt_count=0, **kwargs):
+        kwargs["headers"] = dict(authorization_header, **kwargs.get("headers", {}))
+        response = super().request(method, url, **kwargs)
+        if response.status_code in (200, 201):
+            return response
+        if attempt_count > config.REQUEST_ATTEMPT_LIMIT:
+            response.raise_for_status()
+        if response.status_code == 401:
+            authorization_header[
+                "Authorization"
+            ] = f"Bearer {get_access_token(config.DRCHRONO_REFRESH_TOKEN)}"
+            kwargs["headers"].pop("Authorization")
+            return self.request(method, url, attempt_count=attempt_count + 1, **kwargs)
+        if response.status_code == 500:
+            return self.request(method, url, attempt_count=attempt_count + 1, **kwargs)
+        print(response.status_code, response.text)
+        return response
+
+
+drchrono = DrChronoSession()
+
+
+def get_office(attempt_count=0):
+    response = drchrono.get(
+        "https://drchrono.com/api/offices", params={"doctor": config.DOCTOR_ID}
+    )
+    offices = response.json()["results"]
+    if not offices:
+        if attempt_count > config.REQUEST_ATTEMPT_LIMIT:
+            response.raise_for_status()
+        return get_office(attempt_count + 1)
+    return offices[0]
+
+
 @app.errorhandler(404)
 def page_not_found(e):
-    return redirect('/appointments', 301)
+    return redirect("/appointments", 301)
 
 
 @app.route("/form", methods=["GET", "POST"])
@@ -62,9 +98,7 @@ def create_appointment():
             "gender": result["gender"],
             "cell_phone": result["phone"],
         }
-        response = requests.post(
-            "https://drchrono.com/api/patients", headers=headers, data=patient_data
-        )
+        response = drchrono.post("https://drchrono.com/api/patients", data=patient_data)
         patient = response.json()
         appointment_data = {
             "patient": patient["id"],
@@ -75,10 +109,8 @@ def create_appointment():
             "exam_room": config.EXAM_ROOM,
         }
         print(appointment_data)
-        response = requests.post(
-            "https://drchrono.com/api/appointments",
-            headers=headers,
-            data=appointment_data,
+        response = drchrono.post(
+            "https://drchrono.com/api/appointments", data=appointment_data
         )
         if response.status_code == 201:
             return redirect("/appointments")
@@ -120,12 +152,7 @@ def appointments():
     dates = {(date_start + timedelta(days=i)).date(): [] for i in range(0, 7)}
     date_end = date_start + timedelta(days=6)
 
-    response = requests.get(
-        "https://drchrono.com/api/offices",
-        headers=headers,
-        params={"doctor": config.DOCTOR_ID},
-    )
-    office = response.json()["results"][0]
+    office = get_office()
 
     appointments_list = []
     appointments_url = "https://drchrono.com/api/appointments"
@@ -133,7 +160,7 @@ def appointments():
         "date_range": f"{date_start.strftime('%Y-%m-%d')}/{date_end.strftime('%Y-%m-%d')}",
     }
     while appointments_url:
-        response = requests.get(appointments_url, headers=headers, params=params)
+        response = drchrono.get(appointments_url, params=params)
         if response.status_code == 200:
             data = response.json()
         else:
