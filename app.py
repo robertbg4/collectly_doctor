@@ -33,6 +33,11 @@ headers = {
 }
 
 
+@app.route("/")
+def main():
+    return redirect("/appointments")
+
+
 @app.route("/form", methods=["GET", "POST"])
 def create_appointment():
     # TODO: find exists patients
@@ -91,15 +96,15 @@ def create_appointment():
     )
 
 
-@app.route("/patients")
-def patients():
-    patients_list = []
-    patients_url = "https://drchrono.com/api/patients"
-    while patients_url:
-        data = requests.get(patients_url, headers=headers).json()
-        patients_list.extend(data["results"])
-        patients_url = data["next"]
-    return render_template("patients.html", patients=patients_list)
+# @app.route("/patients")
+# def patients():
+#     patients_list = []
+#     patients_url = "https://drchrono.com/api/patients"
+#     while patients_url:
+#         data = requests.get(patients_url, headers=headers).json()
+#         patients_list.extend(data["results"])
+#         patients_url = data["next"]
+#     return render_template("patients.html", patients=patients_list)
 
 
 @app.route("/appointments")
