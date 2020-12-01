@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  app:
+    restart: unless-stopped
+    env_file:
+      - .env
+    image: docktor_app
+    hostname: app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: /opt/doctor/run.sh
+    ports:
+      - "5010:5010"
