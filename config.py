@@ -2,7 +2,8 @@ import os
 
 
 def get_required_env(var_name):
-    if (value := os.getenv(var_name)) is None:
+    value = os.getenv(var_name)
+    if value is None:
         raise ValueError(f"enviroment variable {var_name} is not set")
     return value
 
