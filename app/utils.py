@@ -3,12 +3,12 @@ from requests import Session
 import config
 
 
-def get_auth_header(refresh_token):
+def get_auth_header():
     with Session() as requests:
         response = requests.post(
             "https://drchrono.com/o/token/",
             data={
-                "refresh_token": refresh_token,
+                "refresh_token": config.DRCHRONO_REFRESH_TOKEN,
                 "grant_type": "refresh_token",
                 "client_id": config.DRCHRONO_CLIENT_ID,
                 "client_secret": config.DRCHRONO_CLIENT_SECRET,
@@ -19,9 +19,7 @@ def get_auth_header(refresh_token):
         response.raise_for_status()
 
 
-authorization_header = {
-    "Authorization": get_auth_header(config.DRCHRONO_REFRESH_TOKEN)
-}
+authorization_header = {"Authorization": ""}
 
 
 class DrChronoSession(Session):
@@ -33,10 +31,9 @@ class DrChronoSession(Session):
         if attempt_count > config.REQUEST_ATTEMPT_LIMIT:
             response.raise_for_status()
         if response.status_code == 401:
-            authorization_header["Authorization"] = get_auth_header(config.DRCHRONO_REFRESH_TOKEN)
+            authorization_header["Authorization"] = get_auth_header()
             kwargs["headers"].pop("Authorization")
             return self.request(method, url, attempt_count=attempt_count + 1, **kwargs)
         if response.status_code == 500:
             return self.request(method, url, attempt_count=attempt_count + 1, **kwargs)
-        print(response.status_code, response.text)
-        return response
+        response.raise_for_status()

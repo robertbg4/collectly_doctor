@@ -8,14 +8,13 @@ from app.utils import DrChronoSession
 
 drchrono = DrChronoSession()
 
-main_blueprint = Blueprint('main', __name__, template_folder='templates')
+main_blueprint = Blueprint("main", __name__, template_folder="templates")
 
 
 @main_blueprint.route("/form", methods=["GET", "POST"])
 def create_appointment():
     # TODO: find exists patients
     form = CreatePatientForm()
-    print(request.form)
     start = request.args.get("start")
     duration = request.args.get("duration")
     try:
@@ -45,12 +44,8 @@ def create_appointment():
             "office": config.OFFICE_ID,
             "exam_room": config.EXAM_ROOM,
         }
-        print(appointment_data)
-        response = drchrono.post("https://drchrono.com/api/appointments", data=appointment_data)
-        if response.status_code == 201:
-            return redirect("/appointments")
-        else:
-            print(response.text)
+        drchrono.post("https://drchrono.com/api/appointments", data=appointment_data)
+        return redirect("/appointments")
     # TODO: check that this interval is free
     start_times = [start + timedelta(minutes=i * 15) for i in range(duration // 15)]
 
@@ -65,7 +60,6 @@ def create_appointment():
 
 @main_blueprint.route("/appointments")
 def appointments_table():
-    # TODO: catch api errors
     from_date = request.args.get("from_date")
     try:
         from_date = datetime.fromisoformat(from_date)
@@ -121,7 +115,7 @@ def get_office(attempt_count=0):
     offices = response.json()["results"]
     if not offices:
         if attempt_count > config.REQUEST_ATTEMPT_LIMIT:
-            response.raise_for_status()
+            abort(502)
         return get_office(attempt_count + 1)
     return offices[0]
 

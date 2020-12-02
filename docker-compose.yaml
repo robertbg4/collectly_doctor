@@ -10,6 +10,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    entrypoint: ["exec", "gunicorn", "run:app", "-b", "localhost:5010"]
+    entrypoint: ["exec", "gunicorn", "run:application", "-b", "localhost:5010"]
     ports:
       - "5010:5010"
