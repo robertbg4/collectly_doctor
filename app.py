@@ -1,72 +1,39 @@
 from datetime import datetime, timedelta
 
-from requests import Session
 from flask import Flask, request, redirect, render_template, abort
 from flask_wtf import CSRFProtect
 
 import config
 from forms import CreatePatientForm
+from utils import DrChronoSession
 
 app = Flask(__name__)
 app.config.from_object(__name__)
 app.config["SECRET_KEY"] = config.SECRET_KEY
+
 csrf = CSRFProtect(app)
-
-
-def get_access_token(refresh_token):
-    with Session() as requests:
-        response = requests.post(
-            "https://drchrono.com/o/token/",
-            data={
-                "refresh_token": refresh_token,
-                "grant_type": "refresh_token",
-                "client_id": config.DRCHRONO_CLIENT_ID,
-                "client_secret": config.DRCHRONO_CLIENT_SECRET,
-            },
-        )
-        if response.status_code == 200:
-            return response.json()["access_token"]
-        response.raise_for_status()
-
-
-authorization_header = {
-    "Authorization": f"Bearer {get_access_token(config.DRCHRONO_REFRESH_TOKEN)}",
-}
-
-
-class DrChronoSession(Session):
-    def request(self, method, url, attempt_count=0, **kwargs):
-        kwargs["headers"] = dict(authorization_header, **kwargs.get("headers", {}))
-        response = super().request(method, url, **kwargs)
-        if response.status_code in (200, 201):
-            return response
-        if attempt_count > config.REQUEST_ATTEMPT_LIMIT:
-            response.raise_for_status()
-        if response.status_code == 401:
-            authorization_header[
-                "Authorization"
-            ] = f"Bearer {get_access_token(config.DRCHRONO_REFRESH_TOKEN)}"
-            kwargs["headers"].pop("Authorization")
-            return self.request(method, url, attempt_count=attempt_count + 1, **kwargs)
-        if response.status_code == 500:
-            return self.request(method, url, attempt_count=attempt_count + 1, **kwargs)
-        print(response.status_code, response.text)
-        return response
-
-
 drchrono = DrChronoSession()
 
 
 def get_office(attempt_count=0):
-    response = drchrono.get(
-        "https://drchrono.com/api/offices", params={"doctor": config.DOCTOR_ID}
-    )
+    response = drchrono.get("https://drchrono.com/api/offices", params={"doctor": config.DOCTOR_ID})
     offices = response.json()["results"]
     if not offices:
         if attempt_count > config.REQUEST_ATTEMPT_LIMIT:
             response.raise_for_status()
         return get_office(attempt_count + 1)
     return offices[0]
+
+
+def get_appointments(date_start, date_end):
+    appointments_list = []
+    appointments_url = "https://drchrono.com/api/appointments"
+    params = {"date_range": f"{date_start.strftime('%Y-%m-%d')}/{date_end.strftime('%Y-%m-%d')}"}
+    while appointments_url:
+        data = drchrono.get(appointments_url, params=params).json()
+        appointments_list.extend(data["results"])
+        appointments_url = data["next"]
+    return appointments_list
 
 
 @app.errorhandler(404)
@@ -109,9 +76,7 @@ def create_appointment():
             "exam_room": config.EXAM_ROOM,
         }
         print(appointment_data)
-        response = drchrono.post(
-            "https://drchrono.com/api/appointments", data=appointment_data
-        )
+        response = drchrono.post("https://drchrono.com/api/appointments", data=appointment_data)
         if response.status_code == 201:
             return redirect("/appointments")
         else:
@@ -154,68 +119,33 @@ def appointments():
 
     office = get_office()
 
-    appointments_list = []
-    appointments_url = "https://drchrono.com/api/appointments"
-    params = {
-        "date_range": f"{date_start.strftime('%Y-%m-%d')}/{date_end.strftime('%Y-%m-%d')}",
-    }
-    while appointments_url:
-        response = drchrono.get(appointments_url, params=params)
-        if response.status_code == 200:
-            data = response.json()
-        else:
-            print(response.text)
-            break
-        appointments_list.extend(data["results"])
-        appointments_url = data["next"]
-
-    for appointment in appointments_list:
+    for appointment in get_appointments(date_start, date_end):
         billed_date = datetime.fromisoformat(appointment["last_billed_date"])
         dates[billed_date.date()].append(
             Interval(
-                datetime.fromisoformat(appointment["last_billed_date"]),
-                int(appointment["duration"]),
-                True,
+                start=billed_date, finish=billed_date + timedelta(minutes=int(appointment["duration"])), booked=True
             )
         )
     for date in dates:
         dates[date].sort(key=lambda x: x.finish)
         intervals = []
         # first
-        day_start_time = datetime.strptime(
-            f"{date.isoformat()} {office['start_time']}", "%Y-%m-%d %H:%M:%S"
-        )
-        day_end_time = datetime.strptime(
-            f"{date.isoformat()} {office['end_time']}", "%Y-%m-%d %H:%M:%S"
-        )
+        office_start_time = datetime.strptime(f"{date.isoformat()} {office['start_time']}", "%Y-%m-%d %H:%M:%S")
+        office_end_time = datetime.strptime(f"{date.isoformat()} {office['end_time']}", "%Y-%m-%d %H:%M:%S")
         if not dates[date]:
-            free_duration = day_end_time - day_start_time
-            dates[date].append(
-                Interval(day_start_time, int(free_duration.seconds / 60), False)
-            )
+            dates[date].append(Interval(start=office_start_time, finish=office_end_time, booked=False))
             continue
-        free_duration = dates[date][0].start - day_start_time
-        if free_duration > timedelta(minutes=0):
-            intervals.append(
-                Interval(day_start_time, int(free_duration.seconds / 60), False)
-            )
+        if dates[date][0].start > office_start_time:
+            intervals.append(Interval(start=office_start_time, finish=dates[date][0].start, booked=False))
 
         for i in range(0, len(dates[date]) - 1):
             intervals.append(dates[date][i])
-            free_duration = dates[date][i + 1].start - dates[date][i].finish
-            if free_duration > timedelta(minutes=0):
-                intervals.append(
-                    Interval(
-                        dates[date][i].finish, int(free_duration.seconds / 60), False
-                    )
-                )
+            if dates[date][i + 1].start > dates[date][i].finish:
+                intervals.append(Interval(start=dates[date][i].finish, finish=dates[date][i + 1].start, booked=False))
         # last
         intervals.append(dates[date][-1])
-        free_duration = day_end_time - dates[date][-1].finish
-        if free_duration > timedelta(minutes=0):
-            intervals.append(
-                Interval(dates[date][-1].finish, int(free_duration.seconds / 60), False)
-            )
+        if office_end_time > dates[date][-1].finish:
+            intervals.append(Interval(start=dates[date][-1].finish, finish=office_end_time, booked=False))
 
         dates[date] = intervals
     return render_template(
@@ -223,15 +153,15 @@ def appointments():
         dates=dates,
         next_week=date_end + timedelta(days=1),
         previous_week_start=date_start - timedelta(weeks=1) if from_date > datetime.now() else None,
-        previous_week_end=date_start - timedelta(days=1) if from_date > datetime.now()else None,
+        previous_week_end=date_start - timedelta(days=1) if from_date > datetime.now() else None,
     )
 
 
 class Interval(object):
-    def __init__(self, start, duration, booked):
+    def __init__(self, start, finish, booked):
         self.start = start
-        self.finish = start + timedelta(minutes=duration)
-        self.duration = duration
+        self.finish = finish
+        self.duration = (finish - start).seconds // 60
         self.booked = booked
 
     def __repr__(self):
