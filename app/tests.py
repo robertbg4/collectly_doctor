@@ -83,14 +83,22 @@ class TestApp(TestCaseBase):
 
     @responses.activate
     def test_form(self):
+        response = self.client.get(f"/form?start={datetime.now().date().isoformat()} 08:30&duration=60")
+        self.assert400(response)
+        response = self.client.get(f"/form?start={datetime.now().date().isoformat()} 10:30&duration=10")
+        self.assert400(response)
         response = self.client.get(f"/form?start={datetime.now().date().isoformat()} 10:30&duration=765")
+        self.assert400(response)
+        response = self.client.get(f"/form?start={datetime.now().date().isoformat()} 10:30&duration=360")
+        self.assert400(response)
+        response = self.client.get(f"/form?start={datetime.now().date().isoformat()} 10:30&duration=180")
         self.assert200(response)
         self.assertTemplateUsed("form.html")
         response = self.client.get(f"/form?start={datetime.now().date().isoformat()} 10:30&duration=bad_value")
         self.assert400(response)
 
         data = {
-            "start_time": "09:30",
+            "start_time": "10:30",
             "duration": "30 min",
             "first_name": "test_first_name",
             "last_name": "test_last_name",
@@ -101,7 +109,7 @@ class TestApp(TestCaseBase):
             "submit": "Create",
         }
         response = self.client.post(
-            f"/form?start={datetime.now().date().isoformat()} 10:30&duration=765", data=data, follow_redirects=True
+            f"/form?start={datetime.now().date().isoformat()} 10:30&duration=180", data=data, follow_redirects=True
         )
         self.assert200(response)
         self.assertTemplateUsed("appointments.html")

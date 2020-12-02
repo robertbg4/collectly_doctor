@@ -23,6 +23,12 @@ def create_appointment():
     except (TypeError, ValueError):
         abort(400)
 
+    check_appointment_availability(start, duration)
+
+    start_times = [start + timedelta(minutes=i * 15) for i in range(duration // 15)]
+    if not start_times:
+        abort(400)
+
     if form.validate_on_submit():
         result = request.form.to_dict()
         patient_data = {
@@ -46,8 +52,6 @@ def create_appointment():
         }
         drchrono.post("https://drchrono.com/api/appointments", data=appointment_data)
         return redirect("/appointments")
-    # TODO: check that this interval is free
-    start_times = [start + timedelta(minutes=i * 15) for i in range(duration // 15)]
 
     return render_template(
         "form.html",
@@ -81,13 +85,15 @@ def appointments_table():
         )
     for date in dates:
         dates[date].sort(key=lambda x: x.finish)
-        intervals = []
-        # first
+
         office_start_time = datetime.strptime(f"{date.isoformat()} {office['start_time']}", "%Y-%m-%d %H:%M:%S")
         office_end_time = datetime.strptime(f"{date.isoformat()} {office['end_time']}", "%Y-%m-%d %H:%M:%S")
+
         if not dates[date]:
             dates[date].append(Interval(start=office_start_time, finish=office_end_time, booked=False))
             continue
+
+        intervals = []
         if dates[date][0].start > office_start_time:
             intervals.append(Interval(start=office_start_time, finish=dates[date][0].start, booked=False))
 
@@ -95,7 +101,7 @@ def appointments_table():
             intervals.append(dates[date][i])
             if dates[date][i + 1].start > dates[date][i].finish:
                 intervals.append(Interval(start=dates[date][i].finish, finish=dates[date][i + 1].start, booked=False))
-        # last
+
         intervals.append(dates[date][-1])
         if office_end_time > dates[date][-1].finish:
             intervals.append(Interval(start=dates[date][-1].finish, finish=office_end_time, booked=False))
@@ -129,6 +135,36 @@ def get_appointments(date_start, date_end):
         appointments_list.extend(data["results"])
         appointments_url = data["next"]
     return appointments_list
+
+
+def check_appointment_availability(start, duration):
+    current_interval = Interval(start=start, finish=start + timedelta(minutes=duration), booked=True)
+    office = get_office()
+
+    office_start_time = datetime.strptime(f"{start.date().isoformat()} {office['start_time']}", "%Y-%m-%d %H:%M:%S")
+    if current_interval.start < office_start_time:
+        abort(400)
+    office_end_time = datetime.strptime(f"{start.date().isoformat()} {office['end_time']}", "%Y-%m-%d %H:%M:%S")
+    if current_interval.finish > office_end_time:
+        abort(400)
+
+    appointments = []
+    for appointment in get_appointments(date_start=start, date_end=start):
+        billed_date = datetime.fromisoformat(appointment["last_billed_date"])
+        appointments.append(
+            Interval(
+                start=billed_date, finish=billed_date + timedelta(minutes=int(appointment["duration"])), booked=True
+            )
+        )
+    if have_intersection(appointments, current_interval):
+        abort(400)
+
+
+def have_intersection(intervals, current):
+    for interval in intervals:
+        if max(interval.start, current.start) < min(interval.finish, current.finish):
+            return True
+    return False
 
 
 class Interval(object):
