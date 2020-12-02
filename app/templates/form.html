@@ -93,13 +93,8 @@ var end_time = parseTime('{{ end_time }}');
 function setDurations(timeSelect)
 {
     var duration = document.getElementById("DurationSelect");
-    console.log(timeSelect.value);
     var start_time = parseTime(timeSelect.value);
-    document.getElementById("startTime").value = start_time;
-    console.log(start_time);
-    console.log(end_time);
     var max_duration = durationDiff(end_time, start_time);
-    console.log(max_duration);
     var str = ""
     for (var i = 15; i <= max_duration; i += 15) {
         str += "<option>" + i + " min</option>"

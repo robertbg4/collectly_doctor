@@ -1,47 +1,17 @@
 from datetime import datetime, timedelta
 
-from flask import Flask, request, redirect, render_template, abort
-from flask_wtf import CSRFProtect
+from flask import Blueprint, request, redirect, render_template, abort
 
 import config
-from forms import CreatePatientForm
-from utils import DrChronoSession
+from app.forms import CreatePatientForm
+from app.utils import DrChronoSession
 
-app = Flask(__name__)
-app.config.from_object(__name__)
-app.config["SECRET_KEY"] = config.SECRET_KEY
-
-csrf = CSRFProtect(app)
 drchrono = DrChronoSession()
 
-
-def get_office(attempt_count=0):
-    response = drchrono.get("https://drchrono.com/api/offices", params={"doctor": config.DOCTOR_ID})
-    offices = response.json()["results"]
-    if not offices:
-        if attempt_count > config.REQUEST_ATTEMPT_LIMIT:
-            response.raise_for_status()
-        return get_office(attempt_count + 1)
-    return offices[0]
+main_blueprint = Blueprint('main', __name__, template_folder='templates')
 
 
-def get_appointments(date_start, date_end):
-    appointments_list = []
-    appointments_url = "https://drchrono.com/api/appointments"
-    params = {"date_range": f"{date_start.strftime('%Y-%m-%d')}/{date_end.strftime('%Y-%m-%d')}"}
-    while appointments_url:
-        data = drchrono.get(appointments_url, params=params).json()
-        appointments_list.extend(data["results"])
-        appointments_url = data["next"]
-    return appointments_list
-
-
-@app.errorhandler(404)
-def page_not_found(e):
-    return redirect("/appointments", 301)
-
-
-@app.route("/form", methods=["GET", "POST"])
+@main_blueprint.route("/form", methods=["GET", "POST"])
 def create_appointment():
     # TODO: find exists patients
     form = CreatePatientForm()
@@ -93,19 +63,8 @@ def create_appointment():
     )
 
 
-# @app.route("/patients")
-# def patients():
-#     patients_list = []
-#     patients_url = "https://drchrono.com/api/patients"
-#     while patients_url:
-#         data = requests.get(patients_url, headers=headers).json()
-#         patients_list.extend(data["results"])
-#         patients_url = data["next"]
-#     return render_template("patients.html", patients=patients_list)
-
-
-@app.route("/appointments")
-def appointments():
+@main_blueprint.route("/appointments")
+def appointments_table():
     # TODO: catch api errors
     from_date = request.args.get("from_date")
     try:
@@ -157,6 +116,27 @@ def appointments():
     )
 
 
+def get_office(attempt_count=0):
+    response = drchrono.get("https://drchrono.com/api/offices", params={"doctor": config.DOCTOR_ID})
+    offices = response.json()["results"]
+    if not offices:
+        if attempt_count > config.REQUEST_ATTEMPT_LIMIT:
+            response.raise_for_status()
+        return get_office(attempt_count + 1)
+    return offices[0]
+
+
+def get_appointments(date_start, date_end):
+    appointments_list = []
+    appointments_url = "https://drchrono.com/api/appointments"
+    params = {"date_range": f"{date_start.strftime('%Y-%m-%d')}/{date_end.strftime('%Y-%m-%d')}"}
+    while appointments_url:
+        data = drchrono.get(appointments_url, params=params).json()
+        appointments_list.extend(data["results"])
+        appointments_url = data["next"]
+    return appointments_list
+
+
 class Interval(object):
     def __init__(self, start, finish, booked):
         self.start = start
@@ -166,7 +146,3 @@ class Interval(object):
 
     def __repr__(self):
         return f"{self.start.strftime('%H:%M')} - {self.finish.strftime('%H:%M')}"
-
-
-if __name__ == "__main__":
-    app.run(debug=False, port=5003)

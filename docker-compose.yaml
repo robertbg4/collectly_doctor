@@ -6,10 +6,10 @@ services:
     env_file:
       - .env
     image: docktor_app
-    hostname: app
+    hostname: docktor
     build:
       context: .
       dockerfile: Dockerfile
-    entrypoint: /opt/doctor/run.sh
+    entrypoint: ["exec", "gunicorn", "run:app", "-b", "localhost:5010"]
     ports:
       - "5010:5010"
